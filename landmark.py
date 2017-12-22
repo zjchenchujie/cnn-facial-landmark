@@ -167,38 +167,45 @@ def cnn_model_fn(features, labels, mode):
         use_bias=True,
         name="logits")
 
-    # Make prediction for PREDICATION mode.
-    predictions_dict = {
-        "name": features['name'],
-        "logits": logits
-    }
-    if mode == tf.estimator.ModeKeys.PREDICT:
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions_dict)
+    # Define output
+    marks = tf.estimator.export.PredictOutput({'logitz':logits})
+    output = {'marks': marks}
+
+    # Predictions
+    predictions_dict = {"logits": logits}
 
     # Caculate loss using mean squared error.
-    label_tensor = tf.convert_to_tensor(labels, dtype=tf.float32)
-    loss = tf.losses.mean_squared_error(
-        labels=label_tensor, predictions=logits)
+    #label_tensor = tf.convert_to_tensor(labels, dtype=tf.float32)
+    # loss = tf.losses.mean_squared_error(
+    #     labels=labels, predictions=logits)
 
-    # Configure the train OP for TRAIN mode.
-    if mode == tf.estimator.ModeKeys.TRAIN:
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
-        train_op = optimizer.minimize(
-            loss=loss,
-            global_step=tf.train.get_global_step())
+    # PREDICATION mode.
+    if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(
             mode=mode,
-            loss=loss,
-            train_op=train_op,
-            export_outputs={'marks': tf.estimator.export.RegressionOutput(logits)})
+            predictions=predictions_dict,
+            export_outputs=output)
 
-    # Add evaluation metrics (for EVAL mode)
-    eval_metric_ops = {
-        "MSE": tf.metrics.root_mean_squared_error(
-            labels=label_tensor,
-            predictions=logits)}
-    return tf.estimator.EstimatorSpec(
-        mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
+    # # TRAIN mode.
+    # if mode == tf.estimator.ModeKeys.TRAIN:
+    #     optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+    #     train_op = optimizer.minimize(
+    #         loss=loss,
+    #         global_step=tf.train.get_global_step())
+    #     return tf.estimator.EstimatorSpec(
+    #         mode=mode,
+    #         loss=loss,
+    #         train_op=train_op)
+
+    # # Add evaluation metrics (for EVAL mode)
+    # eval_metric_ops = {
+    #     "MSE": tf.metrics.root_mean_squared_error(
+    #         labels=labels,
+    #         predictions=logits)}
+    # return tf.estimator.EstimatorSpec(
+    #     mode=mode,
+    #     loss=loss,
+    #     eval_metric_ops=eval_metric_ops)
 
 
 def _parse_function(record):
@@ -219,7 +226,7 @@ def _parse_function(record):
         image_decoded, [IMG_HEIGHT, IMG_WIDTH, IMG_CHANNEL])
     points = tf.cast(parsed_features['label/points'], tf.float32)
 
-    return {"x": image_reshaped, "name": parsed_features['image/filename']}, points
+    return {"x": image_reshaped}, points
 
 
 def input_fn(record_file, batch_size, num_epochs=None, shuffle=True):
@@ -243,8 +250,8 @@ def input_fn(record_file, batch_size, num_epochs=None, shuffle=True):
 
     # `features` is a dictionary in which each value is a batch of values for
     # that feature; `labels` is a batch of labels.
-    feature, label = iterator.get_next()
-    return feature, label
+    features, label = iterator.get_next()
+    return features, label
 
 
 def _train_input_fn():
@@ -271,51 +278,58 @@ def _predict_input_fn():
 
 
 def serving_input_receiver_fn():
-    """An input receiver that expects a serialized tf.Example."""
-    image = tf.placeholder(dtype=tf.uint8,
-                           shape=[IMG_HEIGHT, IMG_WIDTH, IMG_CHANNEL],
-                           name='input_image_tensor')
-    receiver_tensor = {'image': image}
-    feature = tf.reshape(image, [-1, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNEL])
-    return tf.estimator.export.ServingInputReceiver(feature, receiver_tensor)
+    """A custom input receiver."""
+    image_raw = tf.placeholder(dtype=tf.uint8,
+                               shape=[IMG_HEIGHT, IMG_WIDTH, IMG_CHANNEL],
+                               name='input_image_tensor')
+    image = tf.reshape(image_raw, [-1, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNEL])
+    receiver_tensor = dict(x=image)
+    print(receiver_tensor)
+    return tf.estimator.export.ServingInputReceiver(receiver_tensor, receiver_tensor.copy())
 
 
 def main(unused_argv):
     """MAIN"""
+    # Choose mode between Export model, Train, Evaluate and Predict
+    mode_dict = {
+        'train': tf.estimator.ModeKeys.TRAIN,
+        'eval': tf.estimator.ModeKeys.EVAL,
+        'predict': tf.estimator.ModeKeys.PREDICT,
+    }
+
+    choice = 'save_model'
+
     # Create the Estimator
     estimator = tf.estimator.Estimator(
         model_fn=cnn_model_fn, model_dir="./train")
 
-    # Choose mode between Train, Evaluate and Predict
-    mode_dict = {
-        'train': tf.estimator.ModeKeys.TRAIN,
-        'eval': tf.estimator.ModeKeys.EVAL,
-        'predict': tf.estimator.ModeKeys.PREDICT
-    }
-
-    mode = mode_dict['train']
-
-    if mode == tf.estimator.ModeKeys.TRAIN:
-        estimator.train(input_fn=_train_input_fn, steps=200000)
-
+    if choice == 'save_model':
         # Export result as SavedModel.
-        estimator.export_savedmodel('./saved_model', serving_input_receiver_fn)
+        pb_file = estimator.export_savedmodel(
+            export_dir_base='./saved_model',
+            serving_input_receiver_fn=serving_input_receiver_fn)
+        print("File saved: {}".format(pb_file))
 
-    elif mode == tf.estimator.ModeKeys.EVAL:
-        evaluation = estimator.evaluate(input_fn=_eval_input_fn)
-        print(evaluation)
+    # mode = mode_dict[choice]
 
-    else:
-        predictions = estimator.predict(input_fn=_predict_input_fn)
-        for _, result in enumerate(predictions):
-            img = cv2.imread(result['name'].decode('ASCII') + '.jpg')
-            marks = np.reshape(result['logits'], (-1, 2)) * IMG_WIDTH
-            for mark in marks:
-                cv2.circle(img, (int(mark[0]), int(
-                    mark[1])), 1, (0, 255, 0), -1, cv2.LINE_AA)
-            img = cv2.resize(img, (512, 512))
-            cv2.imshow('result', img)
-            cv2.waitKey()
+    # if mode == tf.estimator.ModeKeys.TRAIN:
+    #     estimator.train(input_fn=_train_input_fn, steps=200)
+
+    # elif mode == tf.estimator.ModeKeys.EVAL:
+    #     evaluation = estimator.evaluate(input_fn=_eval_input_fn)
+    #     print(evaluation)
+
+    # else:
+    #     predictions = estimator.predict(input_fn=_predict_input_fn)
+    #     for _, result in enumerate(predictions):
+    #         img = cv2.imread(result['name'].decode('ASCII') + '.jpg')
+    #         marks = np.reshape(result['logits'], (-1, 2)) * IMG_WIDTH
+    #         for mark in marks:
+    #             cv2.circle(img, (int(mark[0]), int(
+    #                 mark[1])), 1, (0, 255, 0), -1, cv2.LINE_AA)
+    #         img = cv2.resize(img, (512, 512))
+    #         cv2.imshow('result', img)
+    #         cv2.waitKey()
 
 
 if __name__ == '__main__':
