@@ -1,6 +1,7 @@
 """Demo code shows how to detect landmarks from video"""
 import os
 
+import dlib
 import numpy as np
 import tensorflow as tf
 
@@ -67,7 +68,10 @@ def main():
 
         sess = tf.Session(graph=detection_graph)
 
-    # Get frame from webcam or video file.
+    # Construct a dlib shape predictor
+    predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
+
+    # Get frame from webcam or video file
     cam = cv2.VideoCapture(0)
 
     while True:
@@ -83,6 +87,21 @@ def main():
                 facebox[1]: facebox[3],
                 facebox[0]: facebox[2]]
 
+        # Dlib face detection
+        dlib_box = dlib.rectangle(
+            facebox[0], facebox[1], facebox[2], facebox[3])
+        dlib_shapes = predictor(frame, dlib_box)
+        dlib_mark_list = []
+        for shape_num in range(67):
+            dlib_mark_list.append(
+                [dlib_shapes.part(shape_num).x,
+                dlib_shapes.part(shape_num).y])
+        dlib_frame = frame.copy()
+        for mark in dlib_mark_list:
+            cv2.circle(dlib_frame, (int(mark[0]), int(
+                mark[1])), 1, (255, 255, 255), -1, cv2.LINE_AA)
+        cv2.imshow("Dlib", dlib_frame)
+
         # Detect landmarks
         face_img = cv2.resize(face_img, (INPUT_SIZE, INPUT_SIZE))
         face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
@@ -95,7 +114,7 @@ def main():
             mark[1] = facebox[1] + mark[1] * origin_box_size
             cv2.circle(frame, (int(mark[0]), int(
                 mark[1])), 1, (255, 255, 255), -1, cv2.LINE_AA)
-        cv2.imshow("Preview", frame)
+        cv2.imshow("CNN", frame)
         if cv2.waitKey(10) == 27:
             break
 
