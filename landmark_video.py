@@ -70,52 +70,68 @@ def main():
 
     # Construct a dlib shape predictor
     predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
+    detector = dlib.get_frontal_face_detector()
 
     # Get frame from webcam or video file
-    cam = cv2.VideoCapture(0)
+    cam = cv2.VideoCapture(
+        '/home/robin/Documents/landmark/dataset/300VW_Dataset_2015_12_14/009/vid.avi')
+
+    writer = cv2.VideoWriter(
+        './clip.avi', cv2.VideoWriter_fourcc(*'MJPG'), 25, (1280, 480), True)
 
     while True:
         # Read frame
-        _, frame = cam.read()
+        frame_got, frame = cam.read()
+        if frame_got is False:
+            break
+        frame = frame[0:480, 300:940]
+        frame_cnn = frame.copy()
+        frame_dlib = frame.copy()
 
-        # Get face area image.
-        facebox = extract_face(frame)
-        if facebox is None:
-            continue
-        else:
+        # CNN benchmark.
+        facebox = extract_face(frame_cnn)
+        if facebox is not None:
             face_img = frame[
                 facebox[1]: facebox[3],
                 facebox[0]: facebox[2]]
 
-        # Dlib face detection
-        dlib_box = dlib.rectangle(
-            facebox[0], facebox[1], facebox[2], facebox[3])
-        dlib_shapes = predictor(frame, dlib_box)
-        dlib_mark_list = []
-        for shape_num in range(67):
-            dlib_mark_list.append(
-                [dlib_shapes.part(shape_num).x,
-                dlib_shapes.part(shape_num).y])
-        dlib_frame = frame.copy()
-        for mark in dlib_mark_list:
-            cv2.circle(dlib_frame, (int(mark[0]), int(
-                mark[1])), 1, (255, 255, 255), -1, cv2.LINE_AA)
-        cv2.imshow("Dlib", dlib_frame)
+            # Detect landmarks
+            face_img = cv2.resize(face_img, (INPUT_SIZE, INPUT_SIZE))
+            face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+            landmarks = detect_marks(face_img, sess, detection_graph)
 
-        # Detect landmarks
-        face_img = cv2.resize(face_img, (INPUT_SIZE, INPUT_SIZE))
-        face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-        landmarks = detect_marks(face_img, sess, detection_graph)
+            # Visualization of the result.
+            origin_box_size = facebox[2] - facebox[0]
+            for mark in landmarks:
+                mark[0] = facebox[0] + mark[0] * origin_box_size
+                mark[1] = facebox[1] + mark[1] * origin_box_size
+                cv2.circle(frame_cnn, (int(mark[0]), int(
+                    mark[1])), 1, (255, 255, 255), -1, cv2.LINE_AA)
 
-        # Visualization of the result.
-        origin_box_size = facebox[2] - facebox[0]
-        for mark in landmarks:
-            mark[0] = facebox[0] + mark[0] * origin_box_size
-            mark[1] = facebox[1] + mark[1] * origin_box_size
-            cv2.circle(frame, (int(mark[0]), int(
-                mark[1])), 1, (255, 255, 255), -1, cv2.LINE_AA)
-        cv2.imshow("CNN", frame)
-        if cv2.waitKey(10) == 27:
+        # Dlib benchmark.
+        dets = detector(frame_dlib, 1)
+        if len(dets) != 0:
+            dlib_box = dets[0]
+
+            # Detect landmarks
+            dlib_shapes = predictor(frame, dlib_box)
+            dlib_mark_list = []
+            for shape_num in range(68):
+                dlib_mark_list.append(
+                    [dlib_shapes.part(shape_num).x,
+                     dlib_shapes.part(shape_num).y])
+
+            # Visualization of the result.
+            for mark in dlib_mark_list:
+                cv2.circle(frame_dlib, (int(mark[0]), int(
+                    mark[1])), 1, (255, 255, 255), -1, cv2.LINE_AA)
+
+        # Combine two videos together.
+        frame_cmb = np.concatenate((frame_dlib, frame_cnn), axis=1)
+        cv2.imshow("Preview", frame_cmb)
+        writer.write(frame_cmb)
+
+        if cv2.waitKey(30) == 27:
             break
 
     sess.close()
