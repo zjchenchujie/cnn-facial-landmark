@@ -76,25 +76,24 @@ def main():
 
         # Get face area image.
         facebox = extract_face(frame)
-        if facebox is None:
-            continue
-        else:
+        if facebox is not None:
             face_img = frame[
                 facebox[1]: facebox[3],
                 facebox[0]: facebox[2]]
 
-        # Detect landmarks
-        face_img = cv2.resize(face_img, (INPUT_SIZE, INPUT_SIZE))
-        face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-        landmarks = detect_marks(face_img, sess, detection_graph)
+            # Detect landmarks
+            face_img = cv2.resize(face_img, (INPUT_SIZE, INPUT_SIZE))
+            face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+            landmarks = detect_marks(face_img, sess, detection_graph)
 
-        # Visualization of the result.
-        origin_box_size = facebox[2] - facebox[0]
-        for mark in landmarks:
-            mark[0] = facebox[0] + mark[0] * origin_box_size
-            mark[1] = facebox[1] + mark[1] * origin_box_size
-            cv2.circle(frame, (int(mark[0]), int(
-                mark[1])), 1, (255, 255, 255), -1, cv2.LINE_AA)
+            # Visualization of the result.
+            origin_box_size = facebox[2] - facebox[0]
+            for mark in landmarks:
+                mark[0] = facebox[0] + mark[0] * origin_box_size
+                mark[1] = facebox[1] + mark[1] * origin_box_size
+                cv2.circle(frame, (int(mark[0]), int(
+                    mark[1])), 1, (255, 255, 255), -1, cv2.LINE_AA)
+
         cv2.imshow("Preview", frame)
         if cv2.waitKey(10) == 27:
             break
