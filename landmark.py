@@ -168,7 +168,7 @@ def cnn_model_fn(features, labels, mode):
         name="logits")
 
     # Define output
-    marks = tf.estimator.export.PredictOutput({'logitz':logits})
+    marks = tf.estimator.export.PredictOutput({'logitz': logits})
     output = {'marks': marks}
 
     # Predictions
@@ -279,10 +279,10 @@ def _predict_input_fn():
 
 def serving_input_receiver_fn():
     """A custom input receiver."""
-    image_raw = tf.placeholder(dtype=tf.uint8,
-                               shape=[IMG_HEIGHT, IMG_WIDTH, IMG_CHANNEL],
-                               name='input_image_tensor')
-    image = tf.reshape(image_raw, [-1, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNEL])
+    image = tf.placeholder(dtype=tf.uint8,
+                           shape=[1, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNEL],
+                           name='input_image_tensor')
+    # image = tf.reshape(image_raw, [-1, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNEL])
     receiver_tensor = dict(x=image)
     print(receiver_tensor)
     return tf.estimator.export.ServingInputReceiver(receiver_tensor, receiver_tensor.copy())
@@ -306,7 +306,7 @@ def main(unused_argv):
     if choice == 'save_model':
         # Export result as SavedModel.
         pb_file = estimator.export_savedmodel(
-            export_dir_base='./saved_model',
+            export_dir_base='./refined_saved_model',
             serving_input_receiver_fn=serving_input_receiver_fn)
         print("File saved: {}".format(pb_file))
 
