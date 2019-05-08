@@ -12,7 +12,38 @@ Here are some sample gifs extracted from video file showing the detection result
 ![](https://github.com/yinguobing/cnn-facial-landmark/blob/master/demo02.gif)
 
 ![](https://github.com/yinguobing/cnn-facial-landmark/blob/master/demo03.gif)
-
+## Dataset
+### 1. Download
+- Download 300-w dataset from [here](https://ibug.doc.ic.ac.uk/resources/300-W/).  
+- Download 300-vw dataset from [here](https://ibug.doc.ic.ac.uk/resources/300-VW/) or [baidu cloud](https://yun.baidu.com/s/1boROHcj?errno=0&errmsg=Auth%20Login%20Sucess&&bduss=&ssnerror=0&traceid=).
+### 2. Preprocess
+Extract video frame from 300vw:  
+```
+cd dataset/300VW_Dataset_2015-12-14
+bash ../extract_video_frame.sh
+```  
+Randomly select 10% of extracted frame as train set as there are plenty of images looks the same. For example, two adjacent frames.  
+```
+cd utils
+python random_copy.py
+```  
+Extract facial area from image:   
+```
+python extract_face_from_ibug_image.py
+```  
+Generate test and train list:  
+```
+python file_list_generator.py
+```  
+Generate HDF5 data:  
+```
+python generate_hdf5.py
+```
+Start train:
+```
+cd model
+./train.sh
+```
 ## Background
 This repo is a part of my deep learning series posts. For all the posts please refer to the following links.
 
@@ -42,5 +73,3 @@ This repo is a part of my deep learning series posts. For all the posts please r
 
 ### 第八篇：基于深度学习的人脸特征点检测-移植到iPhone
 如何通过CoreML在iPhone应用中使用TensorFlow模型。[阅读全文](https://yinguobing.com/facial-landmark-localization-by-deep-learning-port-to-ios-with-coreml/)
-
-![dl-posts](https://yinguobing.com/content/images/2018/01/dl-posts.jpg)

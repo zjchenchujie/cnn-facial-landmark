@@ -1,0 +1,17 @@
+train_net: "/home/aia1/ccj/face_landmark/model/train.prototxt"
+test_net: "/home/aia1/ccj/face_landmark/model/test.prototxt"
+test_iter: 100
+test_interval: 1500
+base_lr: 0.001
+display: 10
+max_iter: 150000
+lr_policy: "step"
+gamma: 0.10000000149
+momentum: 0.9
+weight_decay: 0.0005
+stepsize: 10000
+snapshot: 30000
+snapshot_prefix: "/home/aia1/ccj/face_landmark/model/"
+solver_mode: GPU
+momentum2: 0.999
+type: "Adam"
